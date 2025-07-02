@@ -9,7 +9,7 @@ on:
 jobs:
   check-glossary:
     runs-on: ubuntu-latest
-    # 需要權限來讀取內容和寫入 PR 評論/建議
+    # 權限 'pull-requests: write' 同時允許寫入和刪除評論
     permissions:
       contents: read
       pull-requests: write
@@ -18,18 +18,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          # 獲取完整的 git 歷史，以便比較檔案
           fetch-depth: 0
 
       - name: Get changed PO files
         id: changed-files
-        uses: tj-actions/changed-files@v44 # 使用一個 action 來找出變動的檔案
+        uses: tj-actions/changed-files@v44
         with:
           files: |
             **.po
 
       - name: Set up Python
-        if: steps.changed-files.outputs.any_changed == 'true' # 只有在 PO 檔有變動時才繼續
+        if: steps.changed-files.outputs.any_changed == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
@@ -40,10 +39,50 @@ jobs:
           python -m pip install --upgrade pip
           pip install polib requests
 
-      - name: Run glossary check script
+      # ===================================================================
+      # [新增步驟] 在執行檢查前，刪除舊的 Bot 評論
+      # ===================================================================
+      - name: Delete Old Bot Comments
+        if: steps.changed-files.outputs.any_changed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { repo, owner, number } = context.issue;
+            const bot_login = "github-actions[bot]";
+
+            console.log(`Fetching comments for PR #${number} in ${owner}/${repo}...`);
+
+            // 使用 github.paginate 自動處理分頁，獲取所有評論
+            const comments = await github.paginate(github.rest.pulls.listReviewComments, {
+              owner,
+              repo,
+              pull_number: number,
+            });
+
+            const bot_comments = comments.filter(comment => comment.user.login === bot_login);
+
+            if (bot_comments.length === 0) {
+              console.log("No old comments from this bot to delete.");
+              return;
+            }
+
+            console.log(`Found ${bot_comments.length} old comments to delete.`);
+
+            // 遍歷並刪除所有找到的 Bot 評論
+            for (const comment of bot_comments) {
+              console.log(`Deleting comment ID: ${comment.id}`);
+              await github.rest.pulls.deleteReviewComment({
+                owner,
+                repo,
+                comment_id: comment.id,
+              });
+            }
+
+            console.log("Successfully deleted all old bot comments.");
+
+      - name: Run Glossary Check Script
         if: steps.changed-files.outputs.any_changed == 'true'
         env:
-          # 將需要的資訊傳遞給 Python 腳本
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.number }}

@@ -13,55 +13,94 @@ def get_github_headers(token):
     }
 
 def find_existing_bot_comments(repo, pr_number, token):
-    """
-    查找 Bot 之前在特定行上發布的所有評論（包括 Suggestion），避免重複。
-    [修改] 增加了分頁處理邏輯，以獲取所有評論。
-    """
+    """查找 Bot 之前在特定行上發布的所有評論，避免重複"""
     headers = get_github_headers(token)
     existing_comments = set()
     page = 1
-    while True: # <--- 修改點：使用 while 迴圈處理分頁
+    while True:
         url = f"https://api.github.com/repos/{repo}/pulls/{pr_number}/comments?per_page=100&page={page}"
         response = requests.get(url, headers=headers)
-        
         if response.status_code != 200:
-            print(f"Warning: Failed to fetch comments (page {page}). Status: {response.status_code}")
             break
-
         comments_on_page = response.json()
-        if not comments_on_page: # <--- 修改點：如果當前頁面沒有評論，則停止
+        if not comments_on_page:
             break
-
         for comment in comments_on_page:
-            # 使用 get 方法避免因缺少鍵而引發的 KeyError
             if comment.get("user", {}).get("login") == "github-actions[bot]":
                 path = comment.get("path")
-                line = comment.get("line")
+                # [修改] 為了簡化，我們只用結束行來判斷是否重複
+                line = comment.get("line") 
                 if path and line:
                     existing_comments.add((path, line))
-        
-        page += 1 # <--- 修改點：進入下一頁
-        
+        page += 1
     return existing_comments
 
-def post_line_comment(repo, pr_number, token, commit_id, path, line, body):
-    """在 PR 的特定行上發表評論或建議"""
+# [修改] 函數增加 start_line 參數以支持多行建議
+def post_line_comment(repo, pr_number, token, commit_id, path, end_line, body, start_line=None):
+    """在 PR 的特定行或行範圍上發表評論或建議"""
     url = f"https://api.github.com/repos/{repo}/pulls/{pr_number}/comments"
     payload = {
         "body": body,
         "commit_id": commit_id,
         "path": path,
-        "line": line
+        "line": end_line, # 對於多行，這是範圍的結束行
     }
+    # 如果提供了 start_line，則這是一個多行評論/建議
+    if start_line and start_line != end_line:
+        payload["start_line"] = start_line
+        
     response = requests.post(url, headers=get_github_headers(token), json=payload)
     if response.status_code == 201:
-        print(f"✅ Successfully posted comment/suggestion for {path} at line {line}.")
+        print(f"✅ Successfully posted suggestion for {path} at lines {start_line or ''}-{end_line}.")
     else:
-        print(f"❌ Failed to post comment/suggestion for {path} at line {line}. Status: {response.status_code}, Response: {response.text}")
+        print(f"❌ Failed to post suggestion for {path}. Status: {response.status_code}, Response: {response.text}")
+
+# [新增] 輔助函數，找到 msgstr 區塊的起始和結束行號
+def find_msgstr_line_range(lines, start_linenum):
+    """從指定行號開始，找到對應的 msgstr 區塊的起始和結束行號"""
+    msgstr_start_line = -1
+    msgstr_end_line = -1
+
+    # 找到 msgstr 的起始行
+    for i in range(start_linenum - 1, len(lines)):
+        if lines[i].strip().startswith('msgstr'):
+            msgstr_start_line = i + 1
+            msgstr_end_line = i + 1
+            break
+    
+    if msgstr_start_line == -1:
+        return -1, -1
+
+    # 從起始行開始，繼續尋找多行 msgstr 的結束
+    for i in range(msgstr_start_line, len(lines)):
+        line_content = lines[i].strip()
+        if line_content.startswith('"') and line_content.endswith('"'):
+            msgstr_end_line = i + 1
+        else:
+            break
+            
+    return msgstr_start_line, msgstr_end_line
+
+# [新增] 輔助函數，將字符串格式化為 PO 檔案中的 msgstr 格式
+def format_msgstr_for_suggestion(text, leading_whitespace):
+    """將修正後的文本格式化為 PO 檔案的 suggestion 語法"""
+    # 轉義 " 和 \
+    escaped_text = text.replace('\\', '\\\\').replace('"', '\\"')
+    lines = escaped_text.split('\n')
+    
+    if len(lines) == 1:
+        return f'{leading_whitespace}msgstr "{lines[0]}"'
+    else:
+        formatted_lines = [f'{leading_whitespace}msgstr ""']
+        for line in lines:
+            formatted_lines.append(f'{leading_whitespace}"{line}\\n"')
+        # 移除最後一行的 \n
+        formatted_lines[-1] = formatted_lines[-1][:-3] + '"'
+        return '\n'.join(formatted_lines)
 
 def check_po_file(file_path, glossary_map, glossary_list, existing_comments):
-    """檢查 PO 檔案，同時處理完全匹配（Suggestion）和句子匹配（Comment）"""
-    print(f"\n🔎 Checking file with hybrid strategy: {file_path}")
+    """檢查 PO 檔案，對所有可確定的錯誤都提出 Suggestion"""
+    print(f"\n🔎 Checking file: {file_path}")
     
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -77,24 +116,25 @@ def check_po_file(file_path, glossary_map, glossary_list, existing_comments):
         if not entry.msgid or not entry.msgstr or entry.obsolete:
             continue
 
-        # --- 策略 1: 完全匹配 (高信度 -> Suggestion) ---
+        # 統一處理邏輯，先檢查完全匹配，再檢查句子匹配
+        found_issue = False
+        
+        # --- 策略 1: 完全匹配 (高信度) ---
         if entry.msgid in glossary_map:
             term_data = glossary_map[entry.msgid]
             correct_translation = term_data['target']
             
             if entry.msgstr != correct_translation:
-                msgstr_linenum = find_msgstr_line(lines, entry.linenum)
-                if msgstr_linenum == -1 or (file_path, msgstr_linenum) in existing_comments:
+                start_line, end_line = find_msgstr_line_range(lines, entry.linenum)
+                if end_line == -1 or (file_path, end_line) in existing_comments:
                     continue
 
-                print(f"  [SUGGESTION] Found exact match error for '{entry.msgid}' at line {msgstr_linenum}.")
+                print(f"  [SUGGESTION] Found exact match error for '{entry.msgid}' at lines {start_line}-{end_line}.")
                 
-                original_line = lines[msgstr_linenum - 1]
+                original_line = lines[start_line - 1]
                 leading_whitespace = original_line[:len(original_line) - len(original_line.lstrip())]
-                escaped_translation = correct_translation.replace('"', '\\"')
-                suggested_line = f'{leading_whitespace}msgstr "{escaped_translation}"'
+                suggested_block = format_msgstr_for_suggestion(correct_translation, leading_whitespace)
                 
-                # <--- 修改點：將 'errors' 修正為 'common_errors' 以匹配 JSON
                 errors_to_check = term_data.get('common_errors', [])
                 reason = "是已知的常見錯誤" if entry.msgstr in errors_to_check else "不符合術語表規範"
                 
@@ -102,60 +142,55 @@ def check_po_file(file_path, glossary_map, glossary_list, existing_comments):
                     f"術語 `{entry.msgid}` 的翻譯 `{entry.msgstr}` {reason}。\n"
                     f"建議更正為 `{correct_translation}`。\n"
                     f"```suggestion\n"
-                    f"{suggested_line}\n"
+                    f"{suggested_block}\n"
                     f"```"
                 )
-                comments_to_make.append({'path': file_path, 'line': msgstr_linenum, 'body': message_body})
-                continue # 處理完此條目，跳到下一個
+                comments_to_make.append({'path': file_path, 'start_line': start_line, 'end_line': end_line, 'body': message_body})
+                found_issue = True
 
-        # --- 策略 2: 句子中包含術語 (低信度 -> Comment) ---
+        if found_issue:
+            continue
+
+        # --- 策略 2: 句子中包含術語 (現在也提供 Suggestion) ---
         for term in glossary_list:
             source_term, target_term = term['source'], term['target']
             errors_to_check = term.get('common_errors', [])
 
-            # 使用全詞匹配檢查原文術語是否存在
             if re.search(r'\b' + re.escape(source_term) + r'\b', entry.msgid, re.IGNORECASE):
-                # <--- 修改點：使用正則表達式進行全詞匹配，避免誤判
-                found_error = next((error for error in errors_to_check if re.search(r'\b' + re.escape(error) + r'\b', entry.msgstr, re.IGNORECASE)), None)
+                # [修改] 移除 \b，直接搜索字符串，並忽略大小寫
+                found_error = next((error for error in errors_to_check if re.search(re.escape(error), entry.msgstr, re.IGNORECASE)), None)
                 
-                # 只有在找到常見錯誤，且正確翻譯不存在時才提醒
-                if found_error and not re.search(r'\b' + re.escape(target_term) + r'\b', entry.msgstr, re.IGNORECASE):
-                    msgstr_linenum = find_msgstr_line(lines, entry.linenum)
-                    if msgstr_linenum == -1 or (file_path, msgstr_linenum) in existing_comments:
+                if found_error and not re.search(re.escape(target_term), entry.msgstr, re.IGNORECASE):
+                    start_line, end_line = find_msgstr_line_range(lines, entry.linenum)
+                    if end_line == -1 or (file_path, end_line) in existing_comments:
                         continue
 
-                    print(f"  [COMMENT] Found potential term error for '{source_term}' in a sentence at line {msgstr_linenum}.")
+                    print(f"  [SUGGESTION] Found sentence term error for '{source_term}' at lines {start_line}-{end_line}.")
                     
+                    # [修改] 生成修正後的句子
+                    corrected_msgstr = entry.msgstr.replace(found_error, target_term)
+                    
+                    original_line = lines[start_line - 1]
+                    leading_whitespace = original_line[:len(original_line) - len(original_line.lstrip())]
+                    suggested_block = format_msgstr_for_suggestion(corrected_msgstr, leading_whitespace)
+
                     message_body = (
-                        f"**術語檢查提醒**：\n"
-                        f"這句話中的原文 `{source_term}`，其翻譯可能包含了常見錯誤 `{found_error}`。\n"
-                        f"建議的正確術語為：`{target_term}`。\n"
-                        f"請手動檢查並修正此行。"
+                        f"此句中的術語 `{found_error}` 可能是 `{source_term}` 的不正確翻譯。\n"
+                        f"建議修正為 `{target_term}`。\n"
+                        f"```suggestion\n"
+                        f"{suggested_block}\n"
+                        f"```"
                     )
-                    comments_to_make.append({'path': file_path, 'line': msgstr_linenum, 'body': message_body})
-                    # 為了避免對同一行產生多個術語的提醒，找到一個就跳出
+                    comments_to_make.append({'path': file_path, 'start_line': start_line, 'end_line': end_line, 'body': message_body})
+                    # 找到一個錯誤就跳出，避免對同一行提多個建議
                     break 
 
     return comments_to_make
 
-def find_msgstr_line(lines, start_linenum):
-    """從指定行號開始，找到對應的 msgstr 行號"""
-    # 確保不會超出索引範圍
-    for i in range(start_linenum - 1, len(lines)):
-        if lines[i].strip().startswith('msgstr'):
-            return i + 1
-    return -1
-
-def load_glossary(file_path):
-    """載入術語表，同時返回 map 和 list 兩種格式"""
-    print(f"📖 Loading glossary from {file_path}...")
-    with open(file_path, 'r', encoding='utf-8') as f:
-        glossary_list = json.load(f)
-    glossary_map = {item['source']: item for item in glossary_list}
-    print(f"  Loaded {len(glossary_list)} terms.")
-    return glossary_map, glossary_list
+# ... (load_glossary 和 main 函數保持不變，但 main 函數中的調用需要修改)
 
 if __name__ == "__main__":
+    # ... (前面的參數獲取和環境變量檢查不變) ...
     if len(sys.argv) < 2:
         print("Usage: python check_glossary.py <glossary_file> [po_file1 po_file2 ...]")
         sys.exit(1)
@@ -194,13 +229,16 @@ if __name__ == "__main__":
             print(f"  [SKIP] File not found or is empty: {po_file}")
 
     if all_comments_to_make:
-        print(f"\n📮 Posting {len(all_comments_to_make)} new comments/suggestions to the PR...")
+        print(f"\n📮 Posting {len(all_comments_to_make)} new suggestions to the PR...")
         for comment in all_comments_to_make:
-            post_line_comment(github_repo, pr_number, github_token, commit_id, comment['path'], comment['line'], comment['body'])
+            # [修改] 調用 post_line_comment 時傳入 start_line 和 end_line
+            post_line_comment(
+                github_repo, pr_number, github_token, commit_id, 
+                comment['path'], comment['end_line'], comment['body'], comment['start_line']
+            )
         
         print(f"\n💥 Found {len(all_comments_to_make)} issues. Exiting with status 1 to fail the check.")
         sys.exit(1)
     else:
         print("\n✅ No new issues found. All good!")
         sys.exit(0)
-        
