@@ -2,21 +2,11 @@
   {
     "source": "Repository",
     "target": "儲存庫",
-    "common_errors": ["版本庫", "倉庫", "代碼庫"]
+    "common_errors": ["版本庫", "倉庫"]
   },
   {
     "source": "Pull Request",
     "target": "拉取請求",
-    "common_errors": ["合併請求", "PR"]
-  },
-  {
-    "source": "Commit",
-    "target": "提交",
-    "common_errors": ["commit", "Commit"]
-  },
-  {
-    "source": "Branch",
-    "target": "分支",
-    "common_errors": ["branch"]
+    "common_errors": ["合併請求"]
   }
 ]
