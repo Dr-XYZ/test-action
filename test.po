@@ -1,0 +1,39 @@
+# PO 檔案標頭
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"POT-Creation-Date: 2023-10-27 10:00+0000\n"
+"PO-Revision-Date: 2023-10-27 10:00+0000\n"
+"Language: zh_TW\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+# 測試案例 1: 正確翻譯
+# 預期結果: 通過檢查，無任何輸出。
+msgid "Repository"
+msgstr "儲存庫"
+
+# 測試案例 2: 常見錯誤翻譯 (應觸發 Suggestion)
+# 預期結果: 腳本應識別 "合併請求" 為常見錯誤，並建議 "拉取請求"。
+msgid "Pull Request"
+msgstr "合併請求"
+
+# 測試案例 3: 非常見的錯誤翻譯 (應觸發 Comment)
+# 預期結果: 腳本應識別 "送出" 為錯誤，但非已知錯誤，因此留言提醒正確翻譯為 "提交"。
+msgid "Commit"
+msgstr "送出"
+
+# 測試案例 4: 另一個常見錯誤 (大小寫) (應觸發 Suggestion)
+# 預期結果: 腳本應識別 "Commit" 為常見錯誤，並建議 "提交"。
+# (此條目故意放在檔案後面，以測試腳本能處理檔案中的多個錯誤)
+msgid "Commit"
+msgstr "Commit"
+
+# 測試案例 5: 尚未翻譯的條目
+# 預期結果: 腳本應忽略此條目，因為 msgstr 為空。
+msgid "Branch"
+msgstr ""
+
+# 測試案例 6: 原文不在術語表中的條目
+# 預期結果: 腳本應忽略此條目，因為 "Workflow" 不在術語表中。
+msgid "Workflow"
+msgstr "工作流程"
