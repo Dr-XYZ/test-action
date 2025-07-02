@@ -1,18 +1,18 @@
 [
   {
-    "source": "debug",
-    "target": "除錯",
-    "common_errors": ["糾錯"]
+    "source": "return",
+    "target": "回傳",
+    "common_errors": ["返回", "傳回"]
   },
   {
-    "source": "repository",
-    "target": "倉儲",
-    "common_errors": ["儲存庫", "儲藏庫"]
+    "source": "import ",
+    "target": "引入",
+    "common_errors": ["匯入", "導入"]
   },
     {
-        "source": "pull request",
-        "target": "拉取請求",
-        "common_errors": ["拉請求", "拉取要求"]
+        "source": "function ",
+        "target": "函式",
+        "common_errors": ["函數"]
     },
     {
         "source": "commit",
@@ -20,18 +20,13 @@
         "common_errors": ["提交記錄"]
     },
     {
-        "source": "branch",
-        "target": "分支",
-        "common_errors": ["分枝"]
+        "source": "debug",
+        "target": "偵錯",
+        "common_errors": ["除錯"]
     },
     {
-        "source": "merge",
-        "target": "合併",
-        "common_errors": ["合併操作"]
-    },
-    {
-        "source": "issue",
-        "target": "問題",
-        "common_errors": ["議題"]
+        "source": "context manager",
+        "target": "情境管理器",
+        "common_errors": ["上下文管理器", "環境管理器"]
     }
 ]
