@@ -28,3 +28,4 @@ msgstr "這是關於專案的一份報告。"
 # 預期結果: 應能準確地在 msgstr 行留言，指出 "合併請求" 的問題。
 msgid "Your new Pull Request is based on the main Repository."
 msgstr "您新的合併請求是基於主要的 儲存庫。"
+
