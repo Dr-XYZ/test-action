@@ -5,6 +5,7 @@ import polib
 import requests
 import re
 
+# ... (get_github_headers, post_line_comment, find_msgstr_line_range, format_msgstr_for_suggestion 函數保持不變) ...
 def get_github_headers(token):
     """生成 GitHub API 請求標頭"""
     return {
@@ -26,9 +27,9 @@ def post_line_comment(repo, pr_number, token, commit_id, path, end_line, body, s
         
     response = requests.post(url, headers=get_github_headers(token), json=payload)
     if response.status_code == 201:
-        print(f"✅ Successfully posted suggestion for {path} at lines {start_line or ''}-{end_line}.")
+        print(f"✅ Successfully posted comment/suggestion for {path} at lines {start_line or ''}-{end_line}.")
     else:
-        print(f"❌ Failed to post suggestion for {path}. Status: {response.status_code}, Response: {response.text}")
+        print(f"❌ Failed to post comment/suggestion for {path}. Status: {response.status_code}, Response: {response.text}")
 
 def find_msgstr_line_range(lines, start_linenum):
     """從指定行號開始，找到對應的 msgstr 區塊的起始和結束行號"""
@@ -60,9 +61,8 @@ def format_msgstr_for_suggestion(text, leading_whitespace):
         formatted_lines[-1] = formatted_lines[-1][:-3] + '"'
         return '\n'.join(formatted_lines)
 
-# [修改] 移除了 existing_comments 參數
 def check_po_file(file_path, glossary_map, glossary_list):
-    """檢查 PO 檔案，對所有可確定的錯誤都提出 Suggestion"""
+    """檢查 PO 檔案，區分 Suggestion 和 Comment"""
     print(f"\n🔎 Checking file: {file_path}")
     
     try:
@@ -81,12 +81,12 @@ def check_po_file(file_path, glossary_map, glossary_list):
 
         found_issue = False
         
+        # 策略 1: 完全匹配錯誤 -> Suggestion
         if entry.msgid in glossary_map:
             term_data = glossary_map[entry.msgid]
             correct_translation = term_data['target']
             if entry.msgstr != correct_translation:
                 start_line, end_line = find_msgstr_line_range(lines, entry.linenum)
-                # [修改] 移除了 if ... in existing_comments 的檢查
                 if end_line == -1: continue
 
                 print(f"  [SUGGESTION] Found exact match error for '{entry.msgid}' at lines {start_line}-{end_line}.")
@@ -105,14 +105,23 @@ def check_po_file(file_path, glossary_map, glossary_list):
 
         if found_issue: continue
 
+        # 策略 2 & 3: 句子匹配
         for term in glossary_list:
             source_term, target_term = term['source'], term['target']
             errors_to_check = term.get('common_errors', [])
+
+            # 檢查原文是否包含術語
             if re.search(r'\b' + re.escape(source_term) + r'\b', entry.msgid, re.IGNORECASE):
+                
+                # 檢查譯文是否包含正確術語
+                target_term_present = re.search(re.escape(target_term), entry.msgstr, re.IGNORECASE)
+                
+                # 檢查譯文是否包含常見錯誤
                 found_error = next((error for error in errors_to_check if re.search(re.escape(error), entry.msgstr, re.IGNORECASE)), None)
-                if found_error and not re.search(re.escape(target_term), entry.msgstr, re.IGNORECASE):
+
+                # 策略 2: 包含常見錯誤 -> Suggestion
+                if found_error and not target_term_present:
                     start_line, end_line = find_msgstr_line_range(lines, entry.linenum)
-                    # [修改] 移除了 if ... in existing_comments 的檢查
                     if end_line == -1: continue
 
                     print(f"  [SUGGESTION] Found sentence term error for '{source_term}' at lines {start_line}-{end_line}.")
@@ -126,10 +135,29 @@ def check_po_file(file_path, glossary_map, glossary_list):
                         f"```suggestion\n{suggested_block}\n```"
                     )
                     comments_to_make.append({'path': file_path, 'start_line': start_line, 'end_line': end_line, 'body': message_body})
-                    break 
+                    found_issue = True
+                    break # 找到一個問題就處理，跳出術語循環
+                
+                # [新增] 策略 3: 未使用正確術語，也未使用常見錯誤 -> Comment
+                elif not target_term_present and not found_error:
+                    start_line, end_line = find_msgstr_line_range(lines, entry.linenum)
+                    if end_line == -1: continue
+
+                    print(f"  [COMMENT] Found potential missing term for '{source_term}' at lines {start_line}-{end_line}.")
+                    
+                    message_body = (
+                        f"**術語檢查提醒 (低信度)**：\n"
+                        f"- 原文中包含了術語：`{source_term}`\n"
+                        f"- 但在譯文中未找到推薦的術語：`{target_term}`\n\n"
+                        f"請手動檢查當前的翻譯是否準確，或考慮使用推薦術語。"
+                    )
+                    comments_to_make.append({'path': file_path, 'start_line': start_line, 'end_line': end_line, 'body': message_body})
+                    found_issue = True
+                    break # 找到一個問題就處理，跳出術語循環
 
     return comments_to_make
 
+# ... (load_glossary 和 __main__ 函數保持不變) ...
 def load_glossary(file_path):
     """載入術語表"""
     print(f"📖 Loading glossary from {file_path}...")
@@ -163,24 +191,18 @@ if __name__ == "__main__":
     print("🤖 Starting glossary check process...")
     print(f"Repository: {github_repo}, PR: #{pr_number}")
 
-    # [修改] 移除了對 find_existing_bot_comments 的調用
-    # print("\n🔄 Finding existing bot comments to avoid duplicates...")
-    # existing_comments = find_existing_bot_comments(github_repo, pr_number, github_token)
-    # print(f"  Found {len(existing_comments)} existing comments from this bot.")
-
     glossary_map, glossary_list = load_glossary(glossary_file)
     all_comments_to_make = []
 
     for po_file in po_files:
         if os.path.exists(po_file) and os.path.getsize(po_file) > 0:
-            # [修改] 調用 check_po_file 時不再傳入 existing_comments
             comments = check_po_file(po_file, glossary_map, glossary_list)
             all_comments_to_make.extend(comments)
         else:
             print(f"  [SKIP] File not found or is empty: {po_file}")
 
     if all_comments_to_make:
-        print(f"\n📮 Posting {len(all_comments_to_make)} new suggestions to the PR...")
+        print(f"\n📮 Posting {len(all_comments_to_make)} new comments/suggestions to the PR...")
         for comment in all_comments_to_make:
             post_line_comment(
                 github_repo, pr_number, github_token, commit_id, 
