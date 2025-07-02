@@ -1,0 +1,92 @@
+# Test PO file for glossary checker.
+# Copyright (C) 2023
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2023-10-27 10:00+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: zh_TW\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+# ===================================================================
+# 測試案例 1: 完全匹配錯誤 (常見錯誤)
+# 預期行為: 觸發一個 GitHub Suggestion，建議將 "儲存庫" 改為 "倉儲"。
+# ===================================================================
+#: src/git/utils.c:50
+msgid "repository"
+msgstr "儲存庫"
+
+# ===================================================================
+# 測試案例 2: 完全匹配錯誤 (非術語表中的常見錯誤)
+# 預期行為: 觸發一個 GitHub Suggestion，建議將 "送出" 改為 "提交"。
+# ===================================================================
+#: src/git/commit.c:121
+msgid "commit"
+msgstr "送出"
+
+# ===================================================================
+# 測試案例 3: 句子中包含常見錯誤
+# 預期行為: 觸發一個 GitHub Comment，提醒 "拉取要求" 是常見錯誤，建議使用 "拉取請求"。
+# ===================================================================
+#: src/interface/pr_view.c:88
+msgid "Please review this important pull request."
+msgstr "請審查這個重要的拉取要求。"
+
+# ===================================================================
+# 測試案例 4: 句子中包含常見錯誤 (多行 msgstr)
+# 預期行為: 觸發一個 GitHub Comment，提醒 "分枝" 是常見錯誤，建議使用 "分支"。
+# 腳本應能正確找到 msgstr 的起始行。
+# ===================================================================
+#: src/interface/branch_manager.c:20
+msgid "This branch contains critical updates and should not be deleted."
+msgstr ""
+"這個分枝包含了關鍵更新，\n"
+"不應該被刪除。"
+
+# ===================================================================
+# 測試案例 5: 完全正確的翻譯
+# 預期行為: 不觸發任何警告或建議。
+# ===================================================================
+#: src/debugger/main.c:30
+msgid "debug"
+msgstr "除錯"
+
+# ===================================================================
+# 測試案例 6: 句子中包含正確的術語
+# 預期行為: 不觸發任何警告或建議。
+# ===================================================================
+#: src/issues/list.c:45
+msgid "You can create a new issue here."
+msgstr "您可以在這裡建立一個新的問題。"
+
+# ===================================================================
+# 測試案例 7: 未翻譯的條目
+# 預期行為: 腳本應忽略此條目。
+# ===================================================================
+#: src/git/merge.c:10
+msgid "merge"
+msgstr ""
+
+# ===================================================================
+# 測試案例 8: 已過時 (obsolete) 的條目
+# 預期行為: 腳本應忽略此條目。
+# ===================================================================
+#~ msgid "obsolete entry"
+#~ msgstr "過時的條目"
+
+# ===================================================================
+# 測試案例 9: 句子中包含原文術語，但譯文中的錯誤詞彙不在 common_errors 內
+# 預期行為: 不觸發任何警告。因為腳本的句子檢查邏輯只針對已知的 common_errors。
+# ===================================================================
+#: src/git/merge_tool.c:15
+msgid "Ready to merge the feature branch."
+msgstr "準備匯合功能分支。"
