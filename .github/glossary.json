@@ -28,5 +28,10 @@
         "source": "context manager",
         "target": "情境管理器",
         "common_errors": ["上下文管理器", "環境管理器"]
+    },
+    {
+        "source": "database",
+        "target": "資料庫",
+        "common_errors": ["數據庫"]
     }
 ]
