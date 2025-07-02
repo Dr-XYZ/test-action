@@ -1,0 +1,33 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Test Project\n"
+"Language: zh_TW\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+#: short-example-ok
+msgid "This element is displayed."
+msgstr "此元素已顯示。"
+
+#: short-example-wrong
+msgid "The attribute is required."
+msgstr "該特性是必要的。"
+
+#: long-example-ok
+msgid ""
+"This element has a very long description that should be properly translated "
+"and follow the glossary rule."
+msgstr ""
+"這個元素有一段很長的描述，需要被正確地翻譯，\n"
+"並且應該遵守術語表的規範。"
+
+#: long-example-wrong
+msgid ""
+"An attribute with a long description may still be incorrectly translated "
+"if the translator does not follow the glossary."
+msgstr ""
+"一個特性有很長的描述，\n"
+"如果翻譯者沒有依照術語表，可能會出現錯誤翻譯。"
+
+#: multiple-errors
+msgid "An element with an attribute"
+msgstr "一個元件擁有一個特性"
