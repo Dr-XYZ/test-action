@@ -9,8 +9,6 @@ def load_glossary(file_path):
     with open(file_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
     
-    # 將列表轉換為以 "source" 為 key 的字典，方便快速查找
-    # *** 此處已更新為使用英文 key ***
     glossary_map = {item['source']: {
         'target': item['target'],
         'errors': item.get('common_errors', [])
@@ -47,16 +45,12 @@ def check_po_file(file_path, glossary, repo, pr_number, token, commit_id):
         if not entry.msgid or not entry.msgstr:
             continue
 
-        # 檢查原文是否存在於術語表中
         if entry.msgid in glossary:
             term_data = glossary[entry.msgid]
-            # *** 此處已更新為使用 'target' key ***
             correct_translation = term_data['target']
             common_errors = term_data['errors']
 
-            # 如果翻譯不正確
             if entry.msgstr != correct_translation:
-                # 情況 1: 翻譯是已知的常見錯誤
                 if entry.msgstr in common_errors:
                     print(f"  [SUGGESTION] Found common error for '{entry.msgid}' at line {entry.linenum}.")
                     print(f"    - Incorrect: '{entry.msgstr}'")
@@ -73,7 +67,6 @@ def check_po_file(file_path, glossary, repo, pr_number, token, commit_id):
                     post_review_comment(repo, pr_number, token, commit_id, file_path, entry.linenum, message_body)
                     found_issues.append(f"Suggestion for {file_path}:{entry.linenum}")
 
-                # 情況 2: 翻譯不正確，但不是已知的常見錯誤
                 else:
                     print(f"  [COMMENT] Found incorrect translation for '{entry.msgid}' at line {entry.linenum}.")
                     print(f"    - Current: '{entry.msgstr}'")
@@ -110,7 +103,6 @@ def post_summary_comment(repo, pr_number, token, issues):
         print(f"Failed to post summary comment. Status: {response.status_code}, Response: {response.text}")
 
 if __name__ == "__main__":
-    # 從環境變數和命令列參數獲取資訊
     glossary_file = sys.argv[1]
     po_files = sys.argv[2:]
 
@@ -139,7 +131,8 @@ if __name__ == "__main__":
                     all_issues.append(issue)
 
     if all_issues:
-        post_summary_comment(github_repo, pr_number, token, all_issues)
+        # *** 這就是修正的地方 ***
+        post_summary_comment(github_repo, pr_number, github_token, all_issues)
 
     if all_issues or suggestion_issues:
         print("\nFound issues. Exiting with status 1 to fail the check.")
