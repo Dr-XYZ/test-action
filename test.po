@@ -90,4 +90,3 @@ msgstr ""
 #: src/git/merge_tool.c:15
 msgid "Ready to merge the feature branch."
 msgstr "準備匯合功能分支。"
-
