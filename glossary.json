@@ -1,0 +1,12 @@
+[
+  {
+    "term": "element",
+    "correct": "元素",
+    "incorrect": ["元件", "元素體"]
+  },
+  {
+    "term": "attribute",
+    "correct": "屬性",
+    "incorrect": ["特性", "屬質"]
+  }
+]
