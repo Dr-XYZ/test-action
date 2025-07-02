@@ -1,12 +1,37 @@
 [
   {
-    "source": "Repository",
-    "target": "儲存庫",
-    "common_errors": ["版本庫", "倉庫"]
+    "source": "debug",
+    "target": "除錯",
+    "common_errors": ["糾錯"]
   },
   {
-    "source": "Pull Request",
-    "target": "拉取請求",
-    "common_errors": ["合併請求"]
-  }
+    "source": "repository",
+    "target": "倉儲",
+    "common_errors": ["儲存庫", "儲藏庫"]
+  },
+    {
+        "source": "pull request",
+        "target": "拉取請求",
+        "common_errors": ["拉請求", "拉取要求"]
+    },
+    {
+        "source": "commit",
+        "target": "提交",
+        "common_errors": ["提交記錄"]
+    },
+    {
+        "source": "branch",
+        "target": "分支",
+        "common_errors": ["分枝"]
+    },
+    {
+        "source": "merge",
+        "target": "合併",
+        "common_errors": ["合併操作"]
+    },
+    {
+        "source": "issue",
+        "target": "問題",
+        "common_errors": ["議題"]
+    }
 ]
